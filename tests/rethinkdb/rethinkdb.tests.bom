@@ -1,0 +1,34 @@
+brooklyn.catalog:
+  version: "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
+  items:
+    - "https://raw.githubusercontent.com/brooklyncentral/common-catalog-utils/master/common-tests/src/main/resources/commontests/common.tests.bom"
+    - id: rethinkdb-node-tests
+      version: "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
+      itemType: template
+      iconUrl: "https://twitter.com/rethinkdb/profile_image?size=original"
+      name: "RethinkDB Node Tests"
+      item:
+        services:
+        - type: rethinkdb-node-template
+          id: rethinkdb-node
+        - type: test-case
+          name: "RethinkDB Node Tests"
+          brooklyn.config:
+            timeout: 1h
+            targetId: rethinkdb-node
+            process.grep.name:
+              $brooklyn:formatString:
+                - "rethinkdb serve --config-file /etc/rethinkdb/instances.d/%s.conf"
+                - $brooklyn:component("rethinkdb-node").attributeWhenReady("entity.id")
+          brooklyn.children:
+          - type: assert-up-and-running-initial
+            name: "01. RethinkDB Node up and running"
+          - type: assert-reachable
+            name: "02. RethinkDB Node UI reachable"
+            brooklyn.config:
+              endpointSensor: main.uri
+              timeout: 5m
+          - type: assert-restart-process
+            name: "02. RethinkDB Node restart process"
+          - type: assert-stop-and-restart-process
+            name: "03. RethinkDB Node stop and restart process"
