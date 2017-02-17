@@ -1,0 +1,118 @@
+brooklyn.catalog:
+  version: "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
+  publish:
+    description: |
+      RethinkDB is the open-source, scalable database that makes building realtime apps dramatically easier.
+    license_code: "APACHE-2.0"
+    defaults:
+      rethinkDBIconUrl: &rethinkDBIconUrl "https://twitter.com/rethinkdb/profile_image?size=original"
+  items:
+    - https://raw.githubusercontent.com/brooklyncentral/common-catalog-utils/master/common/src/main/resources/common/common.bom
+    - id: rethinkdb-node
+      name: "RethinkDB Node"
+      description: |
+        A single RethinkDB node
+      itemType: entity
+      iconUrl: *rethinkDBIconUrl
+      item:
+        id: rethinkdb-node
+        name: "RethinkDB Node"
+        type: centos-software-process
+        brooklyn.parameters: &rethinkdbNodeParams
+          - name: rethinkdb.http.port
+            label: "HTTP port"
+            description: |
+              The web UI port
+            type: integer
+            default: 8080
+          - name: rethinkdb.driver.port
+            label: "Driver port"
+            description: |
+              The client driver port
+            type: integer
+            default: 28015
+          - name: rethinkdb.cluster.port
+            label: "Cluster port"
+            description: |
+              The intracluster traffic port
+            type: integer
+            default: 29015
+        brooklyn.config:
+          shell.env:
+            ENTITY_ID: $brooklyn:attributeWhenReady("entity.id")
+            HOST_SUBNET_ADDRESS: $brooklyn:attributeWhenReady("host.subnet.address")
+            HTTP_PORT: $brooklyn:config("rethinkdb.http.port")
+            DRIVER_PORT: $brooklyn:config("rethinkdb.driver.port")
+            CLUSTER_PORT: $brooklyn:config("rethinkdb.cluster.port")
+          install.command: |
+            set -e
+            sudo yum update -y
+            sudo yum install -y wget augeas
+            sudo wget https://download.rethinkdb.com/centos/7/`uname -m`/rethinkdb.repo -O /etc/yum.repos.d/rethinkdb.repo
+            sudo wget https://gist.githubusercontent.com/m4rkmckenna/48da884fc724ee2839a0d3999f29bfd0/raw/9a0ac804f8a78b35e7ca0747942c2fb55af3c76f/augtool-helper.sh -O /root/augtool-helper.sh
+            sudo wget https://raw.githubusercontent.com/brooklyncentral/brooklyn-rethinkdb/master/resources/rethinkdb/augtool-helper.sh -O /root/augtool-helper.sh
+            sudo chmod a+rx /root/augtool-helper.sh
+            sudo yum install -y rethinkdb
+            sudo touch /etc/rethinkdb/instances.d/${ENTITY_ID}.conf
+            sudo rethinkdb create -d /var/lib/rethinkdb/${ENTITY_ID}
+            sudo chown -R rethinkdb.rethinkdb /var/lib/rethinkdb/${ENTITY_ID}
+
+            sudo tee /usr/lib/tmpfiles.d/rethinkdb.conf <<-EOF
+            d /run/rethinkdb 0755 rethinkdb rethinkdb -
+            EOF
+            sudo tee /usr/lib/systemd/system/rethinkdb@.service <<-EOF
+            [Unit]
+            Description=RethinkDB database server for instance '%i'
+
+            [Service]
+            User=rethinkdb
+            Group=rethinkdb
+            ExecStart=/usr/bin/rethinkdb serve --config-file /etc/rethinkdb/instances.d/%i.conf
+            KillMode=process
+            PrivateTmp=true
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+
+            sudo chmod 644 /usr/lib/tmpfiles.d/rethinkdb.conf /usr/lib/systemd/system/rethinkdb@.service
+            sudo /root/augtool-helper.sh -l Simplevars -f /etc/rethinkdb/instances.d/${ENTITY_ID}.conf \
+              -c "set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/directory /var/lib/rethinkdb/${ENTITY_ID}"
+            sudo systemctl enable rethinkdb@${ENTITY_ID}
+            sudo systemctl daemon-reload
+          customize.command: |
+            sudo /root/augtool-helper.sh -l Simplevars -f /etc/rethinkdb/instances.d/${ENTITY_ID}.conf \
+              -c "set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/bind ${HOST_SUBNET_ADDRESS}" \
+              -c "set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/server-name ${ENTITY_ID}" \
+              -c "set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/http-port ${HTTP_PORT}" \
+              -c "set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/driver-port ${DRIVER_PORT}" \
+              -c "set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/cluster-port ${CLUSTER_PORT}" \
+              -c "set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/canonical-address ${HOST_SUBNET_ADDRESS}:${CLUSTER_PORT}"
+          launch.command: |
+            sudo systemctl start rethinkdb@${ENTITY_ID}
+          stop.command: |
+            sudo systemctl stop rethinkdb@${ENTITY_ID}
+          checkRunning.command: |
+            sudo systemctl status rethinkdb@${ENTITY_ID}
+        brooklyn.enrichers:
+          - type: org.apache.brooklyn.enricher.stock.Transformer
+            brooklyn.config:
+              enricher.triggerSensors:
+                - host.address
+              enricher.targetSensor: $brooklyn:sensor("main.uri")
+              enricher.targetValue:
+                $brooklyn:formatString:
+                  - "http://%s:%d"
+                  - $brooklyn:attributeWhenReady("host.address")
+                  - $brooklyn:config("rethinkdb.http.port")
+
+    - id: rethinkdb-node-template
+      name: "RethinkDB Node Template"
+      description: |
+        A single RethinkDB node
+      itemType: template
+      iconUrl: *rethinkDBIconUrl
+      item:
+        brooklyn.parameters: *rethinkdbNodeParams
+        services:
+          - type: rethinkdb-node
