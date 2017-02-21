@@ -3,9 +3,8 @@ brooklyn.catalog:
   publish:
     description: |
       RethinkDB is the open-source, scalable database that makes building realtime apps dramatically easier.
-    license_code: "APACHE-2.0"
-    defaults:
-      rethinkDBIconUrl: &rethinkDBIconUrl "https://twitter.com/rethinkdb/profile_image?size=original"
+    license_code: "Apache-2.0"
+    icon_url: &rethinkDBIconUrl "https://twitter.com/rethinkdb/profile_image?size=original"
   items:
     - https://raw.githubusercontent.com/brooklyncentral/common-catalog-utils/master/common/src/main/resources/common/common.bom
     - id: rethinkdb-node
