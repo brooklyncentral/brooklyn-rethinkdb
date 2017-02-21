@@ -5,11 +5,12 @@ AUGEAS_COMMANDS=()
 function usage(){
 	cat <<EOF
 
-Usage: augtool-helper [options]
+Usage: augtool-helper [options] [augeas commands]
 
 	-l| --lens		The augeas lens to use see http://augeas.net/stock_lenses.html eg Properties.lns
 	-f| --file		The file to configure eg /path/to/file.properties
-	-c| --command		The command to run eg set /files/path/to/file.properties/my.var 123
+
+Example: augtool-helper -l Nginx -f /etc/nginx/conf.d/site.cnf "set /files/etc/nginx/conf.d/site.cnf/http/server/listen 80"
 EOF
 	exit 1
 }
@@ -22,10 +23,6 @@ while [[ $# -gt 1 ]]; do
 		;;
 		-f|--file)
 			CONFIG_FILE="$2"
-			shift
-		;;
-		-c|--command)
-			AUGEAS_COMMANDS+=("$2")
 			shift
 		;;
 		*)
@@ -47,6 +44,4 @@ if [ -z "${CONFIG_FILE}" ]; then
 	usage
 fi
 
-for AUGEAS_COMMAND in "${AUGEAS_COMMANDS[@]}";do
-	augtool -Ast "${AUGEAS_LENS} incl ${CONFIG_FILE}" ${AUGEAS_COMMAND}
-done
+augtool -Ast "${AUGEAS_LENS} incl ${CONFIG_FILE}"
