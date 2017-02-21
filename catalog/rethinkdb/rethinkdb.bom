@@ -75,13 +75,12 @@ brooklyn.catalog:
             EOF
 
             sudo chmod 644 /usr/lib/tmpfiles.d/rethinkdb.conf /usr/lib/systemd/system/rethinkdb@.service
-            sudo /root/augtool-helper.sh -l Simplevars -f /etc/rethinkdb/instances.d/${ENTITY_ID}.conf \
-              "set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/directory /var/lib/rethinkdb/${ENTITY_ID}"
             sudo systemctl enable rethinkdb@${ENTITY_ID}
             sudo systemctl daemon-reload
           customize.command: |
             sudo /root/augtool-helper.sh -l Simplevars -f /etc/rethinkdb/instances.d/${ENTITY_ID}.conf <<-EOF
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/bind ${HOST_SUBNET_ADDRESS}
+            set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/directory /var/lib/rethinkdb/${ENTITY_ID}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/server-name ${ENTITY_ID}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/http-port ${HTTP_PORT}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/driver-port ${DRIVER_PORT}
