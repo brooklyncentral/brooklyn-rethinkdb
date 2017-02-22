@@ -1,9 +1,11 @@
 brooklyn.catalog:
-  version: "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
-  publish:
+  version: &rethinkDbVersion "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
+  licence: &rethinkDbLicence "Apache-2.0"
+  publish: &rethinkDbPublish
     description: |
       RethinkDB is the open-source, scalable database that makes building realtime apps dramatically easier.
-    license_code: "Apache-2.0"
+    license_code: *rethinkDbLicence
+    version: *rethinkDbVersion
     icon_url: &rethinkDBIconUrl "https://twitter.com/rethinkdb/profile_image?size=original"
   items:
     - https://raw.githubusercontent.com/brooklyncentral/common-catalog-utils/master/common/src/main/resources/common/common.bom
@@ -13,6 +15,7 @@ brooklyn.catalog:
         A single RethinkDB node
       itemType: entity
       iconUrl: *rethinkDBIconUrl
+      publish: *rethinkDbPublish
       item:
         id: rethinkdb-node
         name: "RethinkDB Node"
@@ -112,6 +115,7 @@ brooklyn.catalog:
         A single RethinkDB node
       itemType: template
       iconUrl: *rethinkDBIconUrl
+      publish: *rethinkDbPublish
       item:
         brooklyn.parameters: *rethinkdbNodeParams
         services:
