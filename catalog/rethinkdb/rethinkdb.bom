@@ -1,25 +1,27 @@
 brooklyn.catalog:
-  version: &rethinkDbVersion "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
-  licence: &rethinkDbLicence "Apache-2.0"
   publish: &rethinkDbPublish
-    description: |
+    name: &rethinkDbName "RethinkDB"
+    description: &rethinkDbDescription |
       RethinkDB is the open-source, scalable database that makes building realtime apps dramatically easier.
-    license_code: *rethinkDbLicence
-    version: *rethinkDbVersion
-    icon_url: &rethinkDBIconUrl "https://twitter.com/rethinkdb/profile_image?size=original"
+    version: &rethinkDbVersion "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
+    iconUrl: &rethinkDbIconUrl "https://twitter.com/rethinkdb/profile_image?size=original"
+    license_code: &rethinkDbLicence "APACHE-2.0"
   items:
-    - https://raw.githubusercontent.com/brooklyncentral/common-catalog-utils/master/common/src/main/resources/common/common.bom
     - id: rethinkdb-node
       name: "RethinkDB Node"
-      description: |
-        A single RethinkDB node
-      itemType: entity
-      iconUrl: *rethinkDBIconUrl
+      version: *rethinkDbVersion
+      iconUrl: *rethinkDbIconUrl
+      description: *rethinkDbDescription
       publish: *rethinkDbPublish
+      itemType: entity
+      iconUrl: *rethinkDbIconUrl
       item:
         id: rethinkdb-node
         name: "RethinkDB Node"
-        type: centos-software-process
+        type: org.apache.brooklyn.entity.software.base.VanillaSoftwareProcess
+        provisioning.properties:
+          osFamily: centos
+          osVersionRegex: 7
         brooklyn.parameters: &rethinkdbNodeParams
           - name: rethinkdb.http.port
             label: "HTTP port"
@@ -40,21 +42,16 @@ brooklyn.catalog:
             type: integer
             default: 29015
         brooklyn.config:
-          shell.env:
+          shell.env: &rethinkDbNodeShellEnv
             ENTITY_ID: $brooklyn:attributeWhenReady("entity.id")
             HOST_SUBNET_ADDRESS: $brooklyn:attributeWhenReady("host.subnet.address")
             HTTP_PORT: $brooklyn:config("rethinkdb.http.port")
             DRIVER_PORT: $brooklyn:config("rethinkdb.driver.port")
             CLUSTER_PORT: $brooklyn:config("rethinkdb.cluster.port")
           install.command: |
-            set -e
+            sudo curl --retry 5 --keepalive-time 30 --speed-time 30 -L "https://download.rethinkdb.com/centos/7/$(uname -m)/rethinkdb.repo" --output /etc/yum.repos.d/rethinkdb.repo
             sudo yum update -y
-            sudo yum install -y wget augeas
-            sudo wget https://download.rethinkdb.com/centos/7/`uname -m`/rethinkdb.repo -O /etc/yum.repos.d/rethinkdb.repo
-            sudo wget https://gist.githubusercontent.com/m4rkmckenna/48da884fc724ee2839a0d3999f29bfd0/raw/9a0ac804f8a78b35e7ca0747942c2fb55af3c76f/augtool-helper.sh -O /root/augtool-helper.sh
-            sudo wget https://raw.githubusercontent.com/brooklyncentral/brooklyn-rethinkdb/master/resources/rethinkdb/augtool-helper.sh -O /root/augtool-helper.sh
-            sudo chmod a+rx /root/augtool-helper.sh
-            sudo yum install -y rethinkdb
+            sudo yum install -y augeas rethinkdb
             sudo touch /etc/rethinkdb/instances.d/${ENTITY_ID}.conf
             sudo rethinkdb create -d /var/lib/rethinkdb/${ENTITY_ID}
             sudo chown -R rethinkdb.rethinkdb /var/lib/rethinkdb/${ENTITY_ID}
@@ -78,25 +75,34 @@ brooklyn.catalog:
             EOF
 
             sudo chmod 644 /usr/lib/tmpfiles.d/rethinkdb.conf /usr/lib/systemd/system/rethinkdb@.service
+            sudo augtool -Ast "Simplevars incl /etc/rethinkdb/instances.d/${ENTITY_ID}.conf" <<-EOF
+            set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/directory /var/lib/rethinkdb/${ENTITY_ID}
+            EOF
             sudo systemctl enable rethinkdb@${ENTITY_ID}
             sudo systemctl daemon-reload
           customize.command: |
-            sudo /root/augtool-helper.sh -l Simplevars -f /etc/rethinkdb/instances.d/${ENTITY_ID}.conf <<-EOF
+            sudo augtool -Ast "Simplevars incl /etc/rethinkdb/instances.d/${ENTITY_ID}.conf" <<-EOF
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/bind ${HOST_SUBNET_ADDRESS}
-            set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/directory /var/lib/rethinkdb/${ENTITY_ID}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/server-name ${ENTITY_ID}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/http-port ${HTTP_PORT}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/driver-port ${DRIVER_PORT}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/cluster-port ${CLUSTER_PORT}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/canonical-address ${HOST_SUBNET_ADDRESS}:${CLUSTER_PORT}
             EOF
-
-          launch.command: |
-            sudo systemctl start rethinkdb@${ENTITY_ID}
-          stop.command: |
-            sudo systemctl stop rethinkdb@${ENTITY_ID}
-          checkRunning.command: |
-            sudo systemctl status rethinkdb@${ENTITY_ID}
+            if [ ! -z "${CLUSTER_HOST_AND_PORT_LIST}" ]; then
+              sudo augtool -Ast "Simplevars incl /etc/rethinkdb/instances.d/${ENTITY_ID}.conf" <<-EOF
+            rm /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/join
+            EOF
+              for HOST_AND_PORT in ${CLUSTER_HOST_AND_PORT_LIST}; do
+                sudo augtool -Ast "Simplevars incl /etc/rethinkdb/instances.d/${ENTITY_ID}.conf" <<-EOF
+            set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/join[last()+1] ${HOST_AND_PORT}
+            EOF
+                echo "=== Added [${HOST_AND_PORT}] to cluster"
+              done
+            fi
+          launch.command: sudo systemctl start rethinkdb@${ENTITY_ID}
+          stop.command: sudo systemctl stop rethinkdb@${ENTITY_ID}
+          checkRunning.command: sudo systemctl status rethinkdb@${ENTITY_ID}
         brooklyn.enrichers:
           - type: org.apache.brooklyn.enricher.stock.Transformer
             brooklyn.config:
@@ -108,15 +114,52 @@ brooklyn.catalog:
                   - "http://%s:%d"
                   - $brooklyn:attributeWhenReady("host.address")
                   - $brooklyn:config("rethinkdb.http.port")
+          - type: org.apache.brooklyn.enricher.stock.Transformer
+            brooklyn.config:
+              enricher.triggerSensors:
+                - host.subnet.address
+              enricher.targetSensor: $brooklyn:sensor("rethinkdb.cluster.host.and.port")
+              enricher.targetValue:
+                $brooklyn:formatString:
+                  - "%s:%d"
+                  - $brooklyn:attributeWhenReady("host.subnet.address")
+                  - $brooklyn:config("rethinkdb.cluster.port")
 
-    - id: rethinkdb-node-template
-      name: "RethinkDB Node Template"
-      description: |
-        A single RethinkDB node
-      itemType: template
-      iconUrl: *rethinkDBIconUrl
+    - id: rethinkdb-cluster
+      name: "RethinkDB Cluster"
+      version: *rethinkDbVersion
+      iconUrl: *rethinkDbIconUrl
+      description: *rethinkDbDescription
       publish: *rethinkDbPublish
+      itemType: entity
+      iconUrl: *rethinkDbIconUrl
+      itemType: entity
       item:
+        type: cluster
+        name: "RethinkDB Cluster"
+        id: rethinkdb-cluster
         brooklyn.parameters: *rethinkdbNodeParams
-        services:
-          - type: rethinkdb-node
+        brooklyn.config:
+          cluster.initial.size: 3
+          dynamiccluster.memberspec:
+            $brooklyn:entitySpec:
+              type: rethinkdb-node
+              brooklyn.config:
+                shell.env:
+                  <<: *rethinkDbNodeShellEnv
+                  CLUSTER_HOST_AND_PORT_LIST: $brooklyn:parent().attributeWhenReady("rethinkdb.cluster.host.and.ports")
+        brooklyn.enrichers:
+          - type: org.apache.brooklyn.enricher.stock.Aggregator
+            brooklyn.config:
+              uniqueTag: rethinkdb-host-and-port-aggregator
+              enricher.sourceSensor: $brooklyn:sensor("rethinkdb.cluster.host.and.port")
+              enricher.targetSensor: $brooklyn:sensor("rethinkdb.cluster.host.and.port.list")
+              enricher.aggregating.fromMembers: true
+              enricher.aggregator.excludeBlank: true
+          - type: org.apache.brooklyn.enricher.stock.Joiner
+            brooklyn.config:
+              uniqueTag: rethinkdb-host-and-port-joiner
+              enricher.sourceSensor: $brooklyn:sensor("rethinkdb.cluster.host.and.port.list")
+              enricher.targetSensor: $brooklyn:sensor("rethinkdb.cluster.host.and.ports")
+              enricher.joiner.quote: false
+              enricher.joiner.separator: " "

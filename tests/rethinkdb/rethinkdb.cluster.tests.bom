@@ -1,0 +1,25 @@
+brooklyn.catalog:
+  version: "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
+  items:
+    - "https://raw.githubusercontent.com/brooklyncentral/common-catalog-utils/master/common-tests/src/main/resources/commontests/common.tests.bom"
+    - id: rethinkdb-cluster-tests
+      version: "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
+      itemType: template
+      iconUrl: "https://twitter.com/rethinkdb/profile_image?size=original"
+      name: "RethinkDB Cluster Tests"
+      item:
+        services:
+        - type: rethinkdb-cluster-template
+          id: rethinkdb-cluster
+        - type: test-case
+          name: "RethinkDB Cluster Tests"
+          brooklyn.config:
+            timeout: 1h
+            targetId: rethinkdb-cluster
+            process.grep.name:
+              $brooklyn:formatString:
+                - "rethinkdb serve --config-file /etc/rethinkdb/instances.d/%s.conf"
+                - $brooklyn:component("rethinkdb-cluster").attributeWhenReady("entity.id")
+          brooklyn.children:
+          - type: assert-up-and-running-initial
+            name: "01. RethinkDB Cluster up and running"
