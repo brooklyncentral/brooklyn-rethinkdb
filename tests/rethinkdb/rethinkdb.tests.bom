@@ -9,7 +9,7 @@ brooklyn.catalog:
       name: "RethinkDB Node Tests"
       item:
         services:
-        - type: rethinkdb-node-template
+        - type: rethinkdb-node
           id: rethinkdb-node
         - type: test-case
           name: "RethinkDB Node Tests"
