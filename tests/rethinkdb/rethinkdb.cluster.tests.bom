@@ -9,7 +9,7 @@ brooklyn.catalog:
       name: "RethinkDB Cluster Tests"
       item:
         services:
-        - type: rethinkdb-cluster-template
+        - type: rethinkdb-cluster
           id: rethinkdb-cluster
         - type: test-case
           name: "RethinkDB Cluster Tests"
