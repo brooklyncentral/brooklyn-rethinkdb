@@ -5,7 +5,7 @@ brooklyn.catalog:
       RethinkDB is the open-source, scalable database that makes building realtime apps dramatically easier.
     version: &rethinkDbVersion "1.0.0-SNAPSHOT" # BROOKLYN_RETHINKDB_VERSION
     iconUrl: &rethinkDbIconUrl "https://twitter.com/rethinkdb/profile_image?size=original"
-    license_code: &rethinkDbLicence "APACHE-2.0"
+    license_code: &rethinkDbLicence "Apache-2.0"
   items:
     - id: rethinkdb-node
       name: "RethinkDB Node"
