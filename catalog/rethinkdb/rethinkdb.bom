@@ -41,6 +41,13 @@ brooklyn.catalog:
               The intracluster traffic port
             type: integer
             default: 29015
+          - name: rethinkdb.bind.address
+            label: "Bind address"
+            description: |
+              The address to bind listens on (defaults to the special value 'all')
+            type: string
+            default: all
+
         brooklyn.config:
           shell.env: &rethinkDbNodeShellEnv
             ENTITY_ID: $brooklyn:attributeWhenReady("entity.id")
@@ -48,6 +55,7 @@ brooklyn.catalog:
             HTTP_PORT: $brooklyn:config("rethinkdb.http.port")
             DRIVER_PORT: $brooklyn:config("rethinkdb.driver.port")
             CLUSTER_PORT: $brooklyn:config("rethinkdb.cluster.port")
+            BIND_ADDRESS: $brooklyn:config("rethinkdb.bind.address")
           install.command: |
             sudo curl --retry 5 --keepalive-time 30 --speed-time 30 -L "https://download.rethinkdb.com/centos/7/$(uname -m)/rethinkdb.repo" --output /etc/yum.repos.d/rethinkdb.repo
             sudo yum update -y
@@ -81,8 +89,10 @@ brooklyn.catalog:
             sudo systemctl enable rethinkdb@${ENTITY_ID}
             sudo systemctl daemon-reload
           customize.command: |
+            if [ -z "${BIND_ADDRESS}" ]; then BIND_ADDRESS="${HOST_SUBNET_ADDRESS}"; fi
+
             sudo augtool -Ast "Simplevars incl /etc/rethinkdb/instances.d/${ENTITY_ID}.conf" <<-EOF
-            set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/bind ${HOST_SUBNET_ADDRESS}
+            set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/bind ${BIND_ADDRESS}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/server-name ${ENTITY_ID}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/http-port ${HTTP_PORT}
             set /files/etc/rethinkdb/instances.d/${ENTITY_ID}.conf/driver-port ${DRIVER_PORT}
